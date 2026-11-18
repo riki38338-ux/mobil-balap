@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Racing Car Game</title>
+    <!-- Tailwind CSS for modern responsive UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js for 3D graphics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Tone.js for procedural sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            overflow: hidden;
+            background-color: #0f172a;
+            user-select: none;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        /* Custom scrollbar and glow effects */
+        .glow-text {
+            text-shadow: 0 0 15px rgba(59, 130, 246, 0.6);
+        }
+    </style>
+</head>
+<body class="relative w-screen h-screen overflow-hidden">
+
+    <!-- 3D Canvas Container -->
+    <div id="canvas-container" class="absolute inset-0 z-0"></div>
+
+    <!-- UI Overlay: Main Menu -->
+    <div id="menu-screen" class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-md transition-opacity duration-500">
+        <div class="text-center p-8 max-w-lg mx-auto bg-slate-900/90 border border-slate-800 rounded-3xl shadow-2xl">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-white mb-2 glow-text tracking-wider">NEON SURGE</h1>
+            <p class="text-slate-400 mb-6 text-sm md:text-base">Rasakan kecepatan balap 3D! Hindari rintangan dan raih skor tertinggi.</p>
+            
+            <div class="bg-slate-800/60 p-4 rounded-2xl mb-6 text-left text-xs md:text-sm text-slate-300 space-y-2 border border-slate-700/50">
+                <p class="font-semibold text-white mb-1">🎮 Kontrol Permainan:</p>
+                <div class="flex justify-between"><span>Kiri / Kanan:</span> <span class="font-mono text-blue-400">Tombol A / D / Panah</span></div>
+                <div class="flex justify-between"><span>Gas / Rem:</span> <span class="font-mono text-blue-400">Tombol W / S</span></div>
+                <div class="flex justify-between"><span>Mobile:</span> <span class="font-mono text-blue-400">Gunakan Tombol di Layar</span></div>
+            </div>
+
+            <button id="start-btn" class="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-2xl shadow-lg shadow-blue-600/30 transition transform active:scale-95 text-lg">
+                MULAI BALAPAN
+            </button>
+        </div>
+    </div>
+
+    <!-- UI Overlay: HUD (Heads Up Display) during gameplay -->
+    <div id="hud" class="absolute inset-0 z-10 pointer-events-none hidden flex flex-col justify-between p-6">
+        <!-- Top Bar -->
+        <div class="flex justify-between items-center w-full max-w-5xl mx-auto">
+            <div class="bg-slate-900/80 backdrop-blur border border-slate-800 px-5 py-3 rounded-2xl shadow-lg text-white flex items-center space-x-6">
+                <div>
+                    <span class="text-xs text-slate-400 block font-semibold">SKOR</span>
+                    <span id="score-val" class="text-2xl font-black text-blue-400">0</span>
+                </div>
+                <div class="h-8 w-px bg-slate-800"></div>
+                <div>
+                    <span class="text-xs text-slate-400 block font-semibold">KECEPATAN</span>
+                    <span id="speed-val" class="text-2xl font-black text-emerald-400">120</span> <span class="text-xs text-slate-400">KM/H</span>
+                </div>
+            </div>
+            
+            <div class="bg-slate-900/80 backdrop-blur border border-slate-800 px-5 py-3 rounded-2xl shadow-lg text-white">
+                <span class="text-xs text-slate-400 block font-semibold">NYAWA</span>
+                <div id="lives-container" class="flex space-x-1 mt-1 text-red-500 text-lg">
+                    ❤️❤️❤️
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Touch Controls for Mobile -->
+        <div class="flex justify-between items-center w-full max-w-4xl mx-auto pb-4 pointer-events-auto md:hidden">
+            <div class="flex space-x-3">
+                <button id="left-btn" class="w-16 h-16 bg-slate-900/80 border border-slate-700 text-white rounded-2xl font-bold text-2xl active:bg-blue-600 shadow-lg">←</button>
+                <button id="right-btn" class="w-16 h-16 bg-slate-900/80 border border-slate-700 text-white rounded-2xl font-bold text-2xl active:bg-blue-600 shadow-lg">→</button>
+            </div>
+            <div class="flex space-x-3">
+                <button id="brake-btn" class="w-16 h-16 bg-slate-900/80 border border-slate-700 text-white rounded-2xl font-bold text-xs active:bg-red-600 shadow-lg">REM</button>
+                <button id="gas-btn" class="w-16 h-16 bg-slate-900/80 border border-slate-700 text-white rounded-2xl font-bold text-xs active:bg-emerald-600 shadow-lg">GAS</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- UI Overlay: Game Over Screen -->
+    <div id="gameover-screen" class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-md hidden transition-opacity duration-500">
+        <div class="text-center p-8 max-w-md mx-auto bg-slate-900/90 border border-slate-800 rounded-3xl shadow-2xl">
+            <h2 class="text-3xl md:text-4xl font-extrabold text-red-500 mb-2 tracking-wider">PERMAINAN USAI</h2>
+            <p class="text-slate-400 mb-6 text-sm">Mobil Anda mengalami tabrakan hebat!</p>
+            
+            <div class="bg-slate-800/60 p-5 rounded-2xl mb-6 border border-slate-700/50">
+                <span class="text-xs text-slate-400 block font-semibold mb-1">SKOR AKHIR ANDA</span>
+                <span id="final-score" class="text-4xl font-black text-white">0</span>
+            </div>
+
+            <button id="restart-btn" class="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-2xl shadow-lg shadow-blue-600/30 transition transform active:scale-95 text-lg">
+                MAIN LAGI
+            </button>
+        </div>
+    </div>
+
+    <!-- JavaScript Game Logic -->
+    <script>
+        // Game State Variables
+        let scene, camera, renderer;
+        let playerCar;
+        let obstacles = [];
+        let rivalCars = [];
+        let roadSegments = [];
+        let gameActive = false;
+        let score = 0;
+        let speed = 0.5;
+        let maxSpeed = 0.9;
+        let baseMaxSpeed = 0.9; // Base maximum speed before progression
+        let lives = 3;
+        let roadLength = 200;
+        let trackWidth = 14;
+
+        // Input tracking
+        const keys = { left: false, right: false, up: false, down: false };
+
+        // Audio setup with Tone.js
+        let engineSynth, crashSynth;
+        function initAudio() {
+            try {
+                Tone.start();
+                // Engine hum sound
+                engineSynth = new Tone.Synth({
+                    oscillator: { type: "sawtooth" },
+                    envelope: { attack: 0.1, decay: 0.2, sustain: 0.5, release: 0.2 }
+                }).toDestination();
+                engineSynth.volume.value = -15;
+
+                // Crash sound effect
+                crashSynth = new Tone.NoiseSynth({
+                    noise: { type: "white" },
+                    envelope: { attack: 0.005, decay: 0.3, sustain: 0 }
+                }).toDestination();
+            } catch (e) {
+                console.log("Audio context initialized later via user gesture.");
+            }
+        }
+
+        // Initialize Three.js Scene, Camera, Lights and Daytime World Objects
+        function initThree() {
+            const container = document.getElementById('canvas-container');
+
+            // Scene - Daytime atmosphere with bright sky blue and mild fog
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x38bdf8);
+            scene.fog = new THREE.FogExp2(0x38bdf8, 0.015);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 6, -12);
+            camera.lookAt(0, 1, 3);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            // Daytime Lighting (Sunlight & Ambient)
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xfffbeb, 1.5);
+            dirLight.position.set(30, 50, -30);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+
+            // Build Track and Scenery
+            createTrack();
+            createPlayerCar();
+
+            // Window resize handler
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // Create endless scrolling road and daytime scenery
+        function createTrack() {
+            // Main road plane
+            const roadGeometry = new THREE.PlaneGeometry(trackWidth, roadLength);
+            const roadMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x334155, 
+                roughness: 0.8,
+                metalness: 0.2 
+            });
+            
+            for (let i = 0; i < 3; i++) {
+                const road = new THREE.Mesh(roadGeometry, roadMaterial);
+                road.rotation.x = -Math.PI / 2;
+                road.position.set(0, 0, (i - 1) * roadLength + roadLength / 2);
+                road.receiveShadow = true;
+                scene.add(road);
+                roadSegments.push(road);
+            }
+
+            // Center lane markings
+            for (let i = 0; i < roadLength * 3; i += 6) {
+                const lineGeo = new THREE.BoxGeometry(0.4, 0.05, 2);
+                const lineMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc });
+                const line = new THREE.Mesh(lineGeo, lineMat);
+                line.position.set(0, 0.02, i - roadLength / 2);
+                scene.add(line);
+            }
+
+            // Daytime roadside barrier poles
+            for (let i = -roadLength; i < roadLength * 2; i += 15) {
+                createSidePost(-trackWidth / 2 - 1, i);
+                createSidePost(trackWidth / 2 + 1, i);
+            }
+        }
+
+        // Create roadside pillars
+        function createSidePost(x, z) {
+            const postGeo = new THREE.BoxGeometry(0.6, 3, 0.6);
+            const postMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.5 });
+            const post = new THREE.Mesh(postGeo, postMat);
+            post.position.set(x, 1.5, z);
+            scene.add(post);
+        }
+
+        // Create Detailed 3D Player Car
+        function createPlayerCar() {
+            playerCar = new THREE.Group();
+
+            // Car Body Chassis
+            const bodyGeo = new THREE.BoxGeometry(2.2, 0.8, 4.5);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.6, roughness: 0.3 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 0.6;
+            body.castShadow = true;
+            playerCar.add(body);
+
+            // Car Cabin / Roof
+            const cabinGeo = new THREE.BoxGeometry(1.6, 0.7, 2.2);
+            const cabinMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9, roughness: 0.1 });
+            const cabin = new THREE.Mesh(cabinGeo, cabinMat);
+            cabin.position.set(0, 1.25, -0.2);
+            cabin.castShadow = true;
+            playerCar.add(cabin);
+
+            // Wheels
+            const wheelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.4, 16);
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
+
+            const wheelPositions = [
+                [-1.2, 0.4, 1.4],
+                [1.2, 0.4, 1.4],
+                [-1.2, 0.4, -1.4],
+                [1.2, 0.4, -1.4]
+            ];
+
+            wheelPositions.forEach(pos => {
+                const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+                wheel.rotation.z = Math.PI / 2;
+                wheel.position.set(...pos);
+                wheel.castShadow = true;
+                playerCar.add(wheel);
+            });
+
+            playerCar.position.set(0, 0, 0);
+            scene.add(playerCar);
+        }
+
+        // Spawn Rival AI Cars on the road
+        function spawnRivalCar() {
+            if (!gameActive) return;
+
+            const lanes = [-4.5, 0, 4.5];
+            const laneX = lanes[Math.floor(Math.random() * lanes.length)];
+
+            // Build Rival Car Group
+            const rivalGroup = new THREE.Group();
+
+            // Rival Body Color (Randomized: blue, yellow, or green)
+            const colors = [0x3b82f6, 0xeab308, 0x10b981];
+            const chosenColor = colors[Math.floor(Math.random() * colors.length)];
+
+            const bodyGeo = new THREE.BoxGeometry(2.2, 0.8, 4.5);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: chosenColor, metalness: 0.6, roughness: 0.3 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 0.6;
+            body.castShadow = true;
+            rivalGroup.add(body);
+
+            const cabinGeo = new THREE.BoxGeometry(1.6, 0.7, 2.2);
+            const cabinMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9, roughness: 0.1 });
+            const cabin = new THREE.Mesh(cabinGeo, cabinMat);
+            cabin.position.set(0, 1.25, -0.2);
+            cabin.castShadow = true;
+            rivalGroup.add(cabin);
+
+            // Wheels for Rival Car
+            const wheelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.4, 16);
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
+            const wheelPositions = [
+                [-1.2, 0.4, 1.4],
+                [1.2, 0.4, 1.4],
+                [-1.2, 0.4, -1.4],
+                [1.2, 0.4, -1.4]
+            ];
+            wheelPositions.forEach(pos => {
+                const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+                wheel.rotation.z = Math.PI / 2;
+                wheel.position.set(...pos);
+                rivalGroup.add(wheel);
+            });
+
+            rivalGroup.position.set(laneX, 0, playerCar.position.z + 130);
+            scene.add(rivalGroup);
+            rivalCars.push(rivalGroup);
+        }
+
+        // Handle Keyboard Controls
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+            if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') keys.up = true;
+            if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keys.down = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+            if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') keys.up = false;
+            if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keys.down = false;
+        });
+
+        // Setup Mobile Touch/Button Controls with full responsiveness
+        function setupTouchControls() {
+            const bindButton = (id, keyName) => {
+                const btn = document.getElementById(id);
+                if (!btn) return;
+                btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; }, { passive: false });
+                btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; }, { passive: false });
+                btn.addEventListener('mousedown', () => { keys[keyName] = true; });
+                btn.addEventListener('mouseup', () => { keys[keyName] = false; });
+                btn.addEventListener('mouseleave', () => { keys[keyName] = false; });
+            };
+
+            bindButton('left-btn', 'left');
+            bindButton('right-btn', 'right');
+            bindButton('gas-btn', 'up');
+            bindButton('brake-btn', 'down');
+        }
+
+        // Resize handler
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Start Game
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+
+        function startGame() {
+            initAudio();
+            if (engineSynth) {
+                try { engineSynth.triggerAttack("C2"); } catch (e) {}
+            }
+
+            // Reset game parameters
+            gameActive = true;
+            score = 0;
+            speed = 0.6;
+            maxSpeed = 0.9; // Reset max speed
+            lives = 3;
+            updateLivesDisplay();
+
+            // Clear existing rival cars
+            rivalCars.forEach(car => scene.remove(car));
+            rivalCars = [];
+
+            playerCar.position.set(0, 0, 0);
+
+            // Toggle UI screens
+            document.getElementById('menu-screen').classList.add('opacity-0', 'pointer-events-none');
+            document.getElementById('gameover-screen').classList.add('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                document.getElementById('menu-screen').style.display = 'none';
+                document.getElementById('gameover-screen').style.display = 'none';
+                document.getElementById('hud').classList.remove('hidden');
+            }, 500);
+
+            // Periodic rival car spawner
+            clearInterval(window.rivalInterval);
+            window.rivalInterval = setInterval(spawnRivalCar, 1600);
+        }
+
+        function gameOver() {
+            gameActive = false;
+            clearInterval(window.rivalInterval);
+
+            if (engineSynth) {
+                try { engineSynth.triggerRelease(); } catch (e) {}
+            }
+            if (crashSynth) {
+                try { crashSynth.triggerAttackRelease("8n"); } catch (e) {}
+            }
+
+            document.getElementById('hud').classList.add('hidden');
+            document.getElementById('final-score').innerText = Math.floor(score);
+            const goScreen = document.getElementById('gameover-screen');
+            goScreen.style.display = 'flex';
+            setTimeout(() => goScreen.classList.remove('opacity-0', 'pointer-events-none'), 10);
+        }
+
+        function updateLivesDisplay() {
+            document.getElementById('lives-container').innerText = '❤️'.repeat(lives);
+        }
+
+        // Main Animation & Physics Loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (gameActive) {
+                // Progressive Speed Increase over time / score
+                // Max speed increases gradually as score increases
+                maxSpeed = baseMaxSpeed + (score * 0.00015);
+                
+                // Acceleration / Deceleration
+                if (keys.up) speed = Math.min(speed + 0.01, maxSpeed);
+                else if (keys.down) speed = Math.max(speed - 0.02, 0.2);
+                else {
+                    // Gradually push baseline speed higher as maxSpeed increases
+                    let targetIdleSpeed = 0.5 + (score * 0.00008);
+                    if (speed > targetIdleSpeed) speed -= 0.002;
+                    else if (speed < targetIdleSpeed) speed += 0.002;
+                }
+
+                // Car steering left/right within track borders
+                const steerSpeed = 0.22;
+                if (keys.left) {
+                    playerCar.position.x -= steerSpeed;
+                    playerCar.rotation.z = THREE.MathUtils.lerp(playerCar.rotation.z, 0.2, 0.1);
+                } else if (keys.right) {
+                    playerCar.position.x += steerSpeed;
+                    playerCar.rotation.z = THREE.MathUtils.lerp(playerCar.rotation.z, -0.2, 0.1);
+                } else {
+                    playerCar.rotation.z = THREE.MathUtils.lerp(playerCar.rotation.z, 0, 0.1);
+                }
+
+                // Clamp car position to track limits
+                const limit = trackWidth / 2 - 1.2;
+                playerCar.position.x = Math.max(-limit, Math.min(limit, playerCar.position.x));
+
+                // Move forward continuously
+                const forwardMove = speed * 1.5;
+                playerCar.position.z += forwardMove;
+                score += forwardMove * 2;
+
+                // Update HUD values
+                document.getElementById('score-val').innerText = Math.floor(score);
+                document.getElementById('speed-val').innerText = Math.floor(speed * 220);
+
+                // Recycle road segments for endless loop feeling
+                roadSegments.forEach(road => {
+                    if (road.position.z < playerCar.position.z - roadLength / 2) {
+                        road.position.z += roadLength * 3;
+                    }
+                });
+
+                // Move and check rival car collisions
+                for (let i = rivalCars.length - 1; i >= 0; i--) {
+                    const rival = rivalCars[i];
+
+                    // Remove rival car if far behind
+                    if (rival.position.z < playerCar.position.z - 15) {
+                        scene.remove(rival);
+                        rivalCars.splice(i, 1);
+                        continue;
+                    }
+
+                    // AABB Collision Detection with rival car
+                    const dx = Math.abs(playerCar.position.x - rival.position.x);
+                    const dz = Math.abs(playerCar.position.z - rival.position.z);
+
+                    if (dx < 1.8 && dz < 3.2) {
+                        // Collision detected!
+                        if (crashSynth) {
+                            try { crashSynth.triggerAttackRelease("4n"); } catch (e) {}
+                        }
+                        scene.remove(rival);
+                        rivalCars.splice(i, 1);
+                        lives--;
+                        updateLivesDisplay();
+
+                        // Flash car white on hit
+                        playerCar.children[0].material.color.set(0xffffff);
+                        setTimeout(() => {
+                            if (playerCar && playerCar.children[0]) {
+                                playerCar.children[0].material.color.set(0xef4444);
+                            }
+                        }, 200);
+
+                        if (lives <= 0) {
+                            gameOver();
+                        }
+                    }
+                }
+
+                // Smooth Camera Follow
+                camera.position.x = THREE.MathUtils.lerp(camera.position.x, playerCar.position.x * 0.5, 0.1);
+                camera.position.z = playerCar.position.z - 12;
+                camera.position.y = THREE.MathUtils.lerp(camera.position.y, playerCar.position.y + 6, 0.1);
+                camera.lookAt(playerCar.position.x * 0.3, playerCar.position.y + 1, playerCar.position.z + 4);
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Initialize App on Load
+        window.onload = function() {
+            initThree();
+            setupTouchControls();
+            animate();
+        };
+    </script>
+</body>
+</html>
